@@ -1,40 +1,32 @@
-import { Section, Cell, Image, List } from '@telegram-apps/telegram-ui';
-import type { FC } from 'react';
+import React from 'react';
+import { Section, Image } from '@telegram-apps/telegram-ui';
+import { useBalance } from '@/context/balanceContext';
+import { NavigationBar } from '@/components/NavigationBar/NavigationBar';
+import { QuestsComponent } from '@/components/QuestComponent/QuestComponent';
 
-import { Link } from '@/components/Link/Link.tsx';
+import ball1 from '../../../assets/ball1.png';
 
-import tonSvg from './ton.svg';
+export const IndexPage: React.FC = () => {
+  const { balance } = useBalance();
 
-export const IndexPage: FC = () => {
   return (
-    <List>
-      <Section
-        header='Features'
-        footer='You can use these pages to learn more about features, provided by Telegram Mini Apps and other useful projects'
-      >
-        <Link to='/ton-connect'>
-          <Cell
-            before={<Image src={tonSvg} style={{ backgroundColor: '#007AFF' }}/>}
-            subtitle='Connect your TON wallet'
-          >
-            TON Connect
-          </Cell>
-        </Link>
+    <div style={{ paddingBottom: '60px' }}>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        padding: '10px',
+        background: '#f0f0f0'
+      }}>
+        <Image src={ball1} alt="BallCry" style={{ width: '50px', height: '50px' }} />
+        <div>Balance: { balance } BallCry</div>
+      </div>
+
+      <Section>
+        <QuestsComponent />
       </Section>
-      <Section
-        header='Application Launch Data'
-        footer='These pages help developer to learn more about current launch information'
-      >
-        <Link to='/init-data'>
-          <Cell subtitle='User data, chat information, technical data'>Init Data</Cell>
-        </Link>
-        <Link to='/launch-params'>
-          <Cell subtitle='Platform identifier, Mini Apps version, etc.'>Launch Parameters</Cell>
-        </Link>
-        <Link to='/theme-params'>
-          <Cell subtitle='Telegram application palette information'>Theme Parameters</Cell>
-        </Link>
-      </Section>
-    </List>
+
+      <NavigationBar />
+    </div>
   );
 };
