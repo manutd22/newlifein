@@ -25,14 +25,21 @@ import { routes } from '@/navigation/routes';
 
 const saveTelegramUser = async (initDataRaw: string) => {
   try {
-    const parsedData = JSON.parse(decodeURIComponent(initDataRaw));
+    // Парсинг строки initDataRaw
+    const params = new URLSearchParams(initDataRaw);
+    const userString = params.get('user');
+    if (!userString) {
+      throw new Error('User data not found in initDataRaw');
+    }
+    const user = JSON.parse(decodeURIComponent(userString));
+
     const userData = {
-      telegramId: parsedData.user.id.toString(),
-      username: parsedData.user.username,
-      firstName: parsedData.user.first_name,
-      lastName: parsedData.user.last_name,
-      languageCode: parsedData.user.language_code,
-      allowsWriteToPm: parsedData.user.allows_write_to_pm,
+      telegramId: user.id.toString(),
+      username: user.username,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      languageCode: user.language_code,
+      allowsWriteToPm: user.allows_write_to_pm,
     };
 
     // Проверяем, существует ли пользователь
