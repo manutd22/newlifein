@@ -17,21 +17,33 @@ import {
   Router,
   Routes,
 } from 'react-router-dom';
-import axios from 'axios';
 import { BalanceProvider } from '@/context/balanceContext';
 import { TonConnectUIProvider } from '@tonconnect/ui-react';
 import { supabase } from '@/lib/supabaseClient';
 
 import { routes } from '@/navigation/routes';
 
-const BACKEND_URL = 'https://4959f4134144da7017426773a6201029.serveo.net';
-
 const saveTelegramUser = async (initDataRaw: string) => {
   try {
-    const response = await axios.post(`${BACKEND_URL}/users/save-telegram-user`, {
-      initData: initDataRaw
-    });
-    return response.data;
+    const parsedData = JSON.parse(decodeURIComponent(initDataRaw));
+    const userData = {
+      telegramId: parsedData.user.id.toString(),
+      username: parsedData.user.username,
+      firstName: parsedData.user.first_name,
+      lastName: parsedData.user.last_name,
+      languageCode: parsedData.user.language_code,
+      allowsWriteToPm: parsedData.user.allows_write_to_pm,
+    };
+
+    const { data, error } = await supabase
+      .from('users')
+      .upsert(userData, { onConflict: 'telegramId' })
+      .select()
+      .single();
+
+    if (error) throw error;
+    console.log('User saved successfully:', data);
+    return data;
   } catch (error) {
     console.error('Failed to save user data:', error);
     throw error;
@@ -50,10 +62,9 @@ export const App: FC = () => {
     if (lp.initDataRaw && !isDataSaved) {
       try {
         console.log('Launch params:', lp);
-        
-        await saveTelegramUser(lp.initDataRaw);
+        const savedUser = await saveTelegramUser(lp.initDataRaw);
         setIsDataSaved(true);
-        console.log('User data saved successfully');
+        console.log('User data saved successfully', savedUser);
       } catch (error) {
         console.error('Error saving user data:', error);
       } finally {
