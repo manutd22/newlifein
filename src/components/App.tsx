@@ -46,10 +46,10 @@ const saveTelegramUser = async (initDataRaw: string) => {
     const userData = {
       telegramId: user.id.toString(),
       username: user.username || null,
-      firstName: user.firstName || null,
-      lastName: user.lastName || null,
-      languageCode: user.languageCode || null,
-      allowsWriteToPm: user.allowsWriteToPm || false
+      firstName: user.first_name || null,
+      lastName: user.last_name || null,
+      languageCode: user.language_code || null,
+      allowsWriteToPm: user.allows_write_to_pm || false
     };
     console.log('Prepared userData:', userData);
 
