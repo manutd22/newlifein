@@ -25,56 +25,40 @@ import { routes } from '@/navigation/routes';
 
 const saveTelegramUser = async (initDataRaw: string) => {
   try {
-    // Парсинг строки initDataRaw
+    console.log('Raw initDataRaw:', initDataRaw);
+    
     const params = new URLSearchParams(initDataRaw);
+    console.log('Parsed params:', Object.fromEntries(params));
+    
     const userString = params.get('user');
+    console.log('User string:', userString);
+    
     if (!userString) {
       throw new Error('User data not found in initDataRaw');
     }
+    
     const user = JSON.parse(decodeURIComponent(userString));
+    console.log('Parsed user:', user);
 
     const userData = {
       telegramId: user.id.toString(),
-      username: user.username,
-      firstName: user.first_name,
-      lastName: user.last_name,
-      languageCode: user.language_code,
-      allowsWriteToPm: user.allows_write_to_pm,
+      username: user.username || null,
+      firstName: user.first_name || null,
+      lastName: user.last_name || null,
+      languageCode: user.language_code || null,
+      allowsWriteToPm: user.allows_write_to_pm || false
     };
+    console.log('Prepared userData:', userData);
 
-    // Проверяем, существует ли пользователь
-    const { data: existingUser, error: fetchError } = await supabase
+    const { data, error } = await supabase
       .from('users')
-      .select('*')
-      .eq('telegramId', userData.telegramId)
+      .upsert(userData, { onConflict: 'telegramId' })
+      .select()
       .single();
 
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      throw fetchError;
-    }
-
-    if (!existingUser) {
-      // Если пользователь не существует, создаем нового
-      const { data: newUser, error: insertError } = await supabase
-        .from('users')
-        .insert([userData])
-        .single();
-
-      if (insertError) throw insertError;
-      console.log('New user created:', newUser);
-      return newUser;
-    } else {
-      // Если пользователь существует, обновляем данные
-      const { data: updatedUser, error: updateError } = await supabase
-        .from('users')
-        .update(userData)
-        .eq('telegramId', userData.telegramId)
-        .single();
-
-      if (updateError) throw updateError;
-      console.log('User updated:', updatedUser);
-      return updatedUser;
-    }
+    if (error) throw error;
+    console.log('User saved or updated:', data);
+    return data;
   } catch (error) {
     console.error('Failed to save user data:', error);
     throw error;
