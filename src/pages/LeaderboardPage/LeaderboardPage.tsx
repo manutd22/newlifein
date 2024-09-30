@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { List, Cell } from '@telegram-apps/telegram-ui';
-import axios from 'axios';
 import { NavigationBar } from '@/components/NavigationBar/NavigationBar';
+import { supabase } from '@/lib/supabaseClient';
 
 interface LeaderboardUser {
   id: number;
@@ -9,18 +9,29 @@ interface LeaderboardUser {
   balance: number;
 }
 
-const BACKEND_URL = 'https://63091712ee14ee12d495ae529c0369a7.serveo.net';
-
 export const LeaderboardPage: React.FC = () => {
   const [users, setUsers] = useState<LeaderboardUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
       try {
-        const response = await axios.get(`${BACKEND_URL}/leaderboard`);
-        setUsers(response.data.slice(0, 50)); // Ограничиваем до 50 пользователей
+        setIsLoading(true);
+        const { data, error } = await supabase
+          .from('users')
+          .select('id, username, balance')
+          .order('balance', { ascending: false })
+          .limit(50);
+
+        if (error) throw error;
+
+        setUsers(data);
       } catch (error) {
         console.error('Error fetching leaderboard:', error);
+        setError('Не удалось загрузить таблицу лидеров. Пожалуйста, попробуйте позже.');
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -30,17 +41,23 @@ export const LeaderboardPage: React.FC = () => {
   return (
     <div style={{ paddingBottom: '60px' }}>
       <h1>Leaderboard</h1>
-      <List>
-        {users.map((user, index) => (
-          <Cell
-            key={user.id}
-            before={`#${index + 1}`}
-            after={`${user.balance} BallCry`}
-          >
-            {user.username}
-          </Cell>
-        ))}
-      </List>
+      {isLoading ? (
+        <div>Загрузка таблицы лидеров...</div>
+      ) : error ? (
+        <div>{error}</div>
+      ) : (
+        <List>
+          {users.map((user, index) => (
+            <Cell
+              key={user.id}
+              before={`#${index + 1}`}
+              after={`${user.balance} BallCry`}
+            >
+              {user.username}
+            </Cell>
+          ))}
+        </List>
+      )}
       <NavigationBar />
     </div>
   );

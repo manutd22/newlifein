@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
 import { Button } from '@telegram-apps/telegram-ui';
 import { DisplayData, DisplayDataRow } from '@/components/DisplayData/DisplayData';
-import { useBalance } from '../../context/balanceContext';
+import { useBalance } from '@/context/balanceContext';
 import { initUtils, useLaunchParams } from '@telegram-apps/sdk-react';
 import { useTonConnectUI } from '@tonconnect/ui-react';
 import { TonConnectButton } from '@tonconnect/ui-react';
+import { supabase } from '@/lib/supabaseClient';
 
 interface Quest {
   id: number;
@@ -16,7 +16,6 @@ interface Quest {
 }
 
 const utils = initUtils();
-const BACKEND_URL = 'https://63091712ee14ee12d495ae529c0369a7.serveo.net';
 const SUBSCRIPTION_CHANNEL = 'sexinandout';
 const BOT_USERNAME = 'prosexin_bot';
 const APP_NAME = 'sexin';
@@ -53,11 +52,15 @@ export const QuestsComponent: React.FC = () => {
     }
 
     try {
-      const response = await axios.get(`${BACKEND_URL}/quests`, {
-        params: { userId: lp.initData.user.id }
-      });
-      console.log('Quests data:', response.data);
-      setQuests(response.data);
+      const { data, error } = await supabase
+        .from('quests')
+        .select('*')
+        .eq('user_id', lp.initData.user.id);
+
+      if (error) throw error;
+
+      console.log('Quests data:', data);
+      setQuests(data);
       setIsLoading(false);
     } catch (error) {
       console.error("Error loading quests:", error);
@@ -96,10 +99,13 @@ export const QuestsComponent: React.FC = () => {
     }
 
     try {
-      await axios.post(`${BACKEND_URL}/quests/set-wallet-connection`, {
-        userId: lp.initData.user.id,
-        isConnected
-      });
+      const { error } = await supabase
+        .from('users')
+        .update({ wallet_connected: isConnected })
+        .eq('id', lp.initData.user.id);
+
+      if (error) throw error;
+
       fetchQuests();
     } catch (error) {
       console.error("Error updating wallet connection status:", error);
@@ -121,10 +127,16 @@ export const QuestsComponent: React.FC = () => {
     }
 
     try {
-      const subscriptionCheck = await axios.get(`${BACKEND_URL}/quests/check-subscription`, {
-        params: { userId: lp.initData.user.id, channelUsername: SUBSCRIPTION_CHANNEL }
-      });
-      if (subscriptionCheck.data.isSubscribed) {
+      const { data, error } = await supabase
+        .from('channel_subscriptions')
+        .select('is_subscribed')
+        .eq('user_id', lp.initData.user.id)
+        .eq('channel_username', SUBSCRIPTION_CHANNEL)
+        .single();
+
+      if (error) throw error;
+
+      if (data?.is_subscribed) {
         await completeQuest(quest);
       } else {
         showPopup('Ошибка', `Вы не подписаны на канал @${SUBSCRIPTION_CHANNEL}. Пожалуйста, подпишитесь и попробуйте снова.`);
@@ -142,9 +154,15 @@ export const QuestsComponent: React.FC = () => {
     }
 
     try {
-      const response = await axios.post(`${BACKEND_URL}/quests/complete/${lp.initData.user.id}/${quest.id}`);
+      const { data, error } = await supabase
+        .from('quests')
+        .update({ completed: true })
+        .eq('id', quest.id)
+        .eq('user_id', lp.initData.user.id);
 
-      if (response.data.success) {
+      if (error) throw error;
+
+      if (data) {
         addToBalance(quest.reward);
         setQuests(quests.filter(q => q.id !== quest.id));
         showPopup('Успех', 'Квест успешно выполнен!');
@@ -153,7 +171,7 @@ export const QuestsComponent: React.FC = () => {
           fetchQuests();
         }
       } else {
-        throw new Error(response.data.message || 'Failed to complete quest');
+        throw new Error('Failed to complete quest');
       }
     } catch (error) {
       console.error("Error completing quest:", error);
@@ -199,8 +217,13 @@ export const QuestsComponent: React.FC = () => {
     } else if (quest.type === 'CONNECT_WALLET') {
       await connectWallet();
     } else if (quest.type === 'DAILY_BONUS') {
-      const availabilityCheck = await axios.get(`${BACKEND_URL}/quests/daily-bonus-available/${lp.initData?.user?.id}`);
-      if (availabilityCheck.data.available) {
+      const { data, error } = await supabase
+        .rpc('is_daily_bonus_available', { user_id: lp.initData?.user?.id });
+      
+      if (error) {
+        console.error("Error checking daily bonus availability:", error);
+        showPopup('Ошибка', 'Не удалось проверить доступность ежедневного бонуса. Попробуйте позже.');
+      } else if (data) {
         await completeQuest(quest);
       } else {
         showPopup('Ошибка', 'Ежедневный бонус еще не доступен. Попробуйте позже.');

@@ -1,8 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
-import axios from 'axios';
 import { useLaunchParams } from '@telegram-apps/sdk-react';
-
-const BACKEND_URL = 'https://63091712ee14ee12d495ae529c0369a7.serveo.net';
+import { supabase } from '@/lib/supabaseClient';
 
 interface BalanceContextType {
   balance: number;
@@ -32,19 +30,19 @@ export const BalanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     try {
       setIsLoading(true);
       setError(null);
-      console.log('Sending request to:', `${BACKEND_URL}/users/${lp.initData.user.id}/balance`);
-      const response = await axios.get(`${BACKEND_URL}/users/${lp.initData.user.id}/balance`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        withCredentials: true,
-      });
-      console.log('Balance response:', response.data);
-      if (typeof response.data.balance === 'number') {
-        setBalance(response.data.balance);
+      
+      const { data, error } = await supabase
+        .from('users')
+        .select('balance')
+        .eq('id', lp.initData.user.id)
+        .single();
+
+      if (error) throw error;
+
+      if (data && typeof data.balance === 'number') {
+        setBalance(data.balance);
       } else {
-        console.error('Invalid balance data received:', response.data);
+        console.error('Invalid balance data received:', data);
         setError('Получены некорректные данные баланса');
       }
     } catch (error) {
@@ -67,23 +65,17 @@ export const BalanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       // Оптимистичное обновление UI
       setBalance((prevBalance) => prevBalance + amount);
 
-      console.log('Sending request to:', `${BACKEND_URL}/users/${lp.initData.user.id}/add-balance`);
-      const response = await axios.post(`${BACKEND_URL}/users/${lp.initData.user.id}/add-balance`, 
-        { amount },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-          },
-          withCredentials: true,
-        }
-      );
+      const { data, error } = await supabase.rpc('add_to_balance', {
+        user_id: lp.initData.user.id,
+        amount: amount
+      });
 
-      console.log('Add balance response:', response.data);
-      if (typeof response.data.balance === 'number') {
-        setBalance(response.data.balance);
+      if (error) throw error;
+
+      if (data && typeof data === 'number') {
+        setBalance(data);
       } else {
-        console.error('Invalid balance data received:', response.data);
+        console.error('Invalid balance data received:', data);
         setError('Получены некорректные данные баланса');
       }
     } catch (error) {

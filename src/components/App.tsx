@@ -20,10 +20,11 @@ import {
 import axios from 'axios';
 import { BalanceProvider } from '@/context/balanceContext';
 import { TonConnectUIProvider } from '@tonconnect/ui-react';
+import { supabase } from '@/lib/supabaseClient';
 
-import { routes } from '@/navigation/routes.tsx';
+import { routes } from '@/navigation/routes';
 
-const BACKEND_URL = 'https://63091712ee14ee12d495ae529c0369a7.serveo.net'; // Замените на ваш реальный URL бэкенда
+const BACKEND_URL = 'https://4959f4134144da7017426773a6201029.serveo.net';
 
 const saveTelegramUser = async (initDataRaw: string) => {
   try {
@@ -80,13 +81,22 @@ export const App: FC = () => {
     return viewport && bindViewportCSSVars(viewport);
   }, [viewport]);
 
-  // Create a new application navigator and attach it to the browser history, so it could modify
-  // it and listen to its changes.
+  // Проверка подключения к Supabase
+  useEffect(() => {
+    const checkSupabaseConnection = async () => {
+      const { error } = await supabase.from('users').select('count').single();
+      if (error) {
+        console.error('Supabase connection error:', error);
+      } else {
+        console.log('Supabase connected successfully');
+      }
+    };
+    checkSupabaseConnection();
+  }, []);
+
   const navigator = useMemo(() => initNavigator('app-navigation-state'), []);
   const [location, reactNavigator] = useIntegration(navigator);
 
-  // Don't forget to attach the navigator to allow it to control the BackButton state as well
-  // as browser history.
   useEffect(() => {
     navigator.attach();
     return () => navigator.detach();
