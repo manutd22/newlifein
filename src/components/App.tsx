@@ -35,15 +35,39 @@ const saveTelegramUser = async (initDataRaw: string) => {
       allowsWriteToPm: parsedData.user.allows_write_to_pm,
     };
 
-    const { data, error } = await supabase
+    // Проверяем, существует ли пользователь
+    const { data: existingUser, error: fetchError } = await supabase
       .from('users')
-      .upsert(userData, { onConflict: 'telegramId' })
-      .select()
+      .select('*')
+      .eq('telegramId', userData.telegramId)
       .single();
 
-    if (error) throw error;
-    console.log('User saved successfully:', data);
-    return data;
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      throw fetchError;
+    }
+
+    if (!existingUser) {
+      // Если пользователь не существует, создаем нового
+      const { data: newUser, error: insertError } = await supabase
+        .from('users')
+        .insert([userData])
+        .single();
+
+      if (insertError) throw insertError;
+      console.log('New user created:', newUser);
+      return newUser;
+    } else {
+      // Если пользователь существует, обновляем данные
+      const { data: updatedUser, error: updateError } = await supabase
+        .from('users')
+        .update(userData)
+        .eq('telegramId', userData.telegramId)
+        .single();
+
+      if (updateError) throw updateError;
+      console.log('User updated:', updatedUser);
+      return updatedUser;
+    }
   } catch (error) {
     console.error('Failed to save user data:', error);
     throw error;
