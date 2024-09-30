@@ -10,7 +10,7 @@ import {
   useViewport,
 } from '@telegram-apps/sdk-react';
 import { AppRoot } from '@telegram-apps/telegram-ui';
-import { type FC, useEffect, useMemo, useState, useCallback } from 'react';
+import { type FC, useEffect, useMemo, useState, useCallback, createContext } from 'react';
 import {
   Navigate,
   Route,
@@ -22,6 +22,9 @@ import { TonConnectUIProvider } from '@tonconnect/ui-react';
 import { supabase } from '@/lib/supabaseClient';
 
 import { routes } from '@/navigation/routes';
+
+// Создаем контекст для пользовательских данных
+export const UserContext = createContext<any>(null);
 
 const saveTelegramUser = async (initDataRaw: string) => {
   try {
@@ -43,10 +46,10 @@ const saveTelegramUser = async (initDataRaw: string) => {
     const userData = {
       telegramId: user.id.toString(),
       username: user.username || null,
-      firstName: user.first_name || null,
-      lastName: user.last_name || null,
-      languageCode: user.language_code || null,
-      allowsWriteToPm: user.allows_write_to_pm || false
+      firstName: user.firstName || null,
+      lastName: user.lastName || null,
+      languageCode: user.languageCode || null,
+      allowsWriteToPm: user.allowsWriteToPm || false
     };
     console.log('Prepared userData:', userData);
 
@@ -72,6 +75,7 @@ export const App: FC = () => {
   const viewport = useViewport();
   const [isDataSaved, setIsDataSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [userData, setUserData] = useState<any>(null);
 
   const saveUserData = useCallback(async () => {
     if (lp.initDataRaw && !isDataSaved) {
@@ -79,7 +83,8 @@ export const App: FC = () => {
         console.log('Launch params:', lp);
         const savedUser = await saveTelegramUser(lp.initDataRaw);
         setIsDataSaved(true);
-        console.log('User data saved successfully', savedUser);
+        setUserData(savedUser);
+        console.log('User data saved and retrieved successfully', savedUser);
       } catch (error) {
         console.error('Error saving user data:', error);
       } finally {
@@ -133,22 +138,28 @@ export const App: FC = () => {
   }
 
   return (
-    <TonConnectUIProvider manifestUrl="https://manutd22.github.io/newlf/tonconnect-manifest.json">
-      <AppRoot
-        appearance={miniApp.isDark ? 'dark' : 'light'}
-        platform={['macos', 'ios'].includes(lp.platform) ? 'ios' : 'base'}
-      >
-        <BalanceProvider>
-          <Router location={location} navigator={reactNavigator}>
-            <Routes>
-              {routes.map((route) => (
-                <Route key={route.path} path={route.path} element={<route.Component />} />
-              ))}
-              <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
-          </Router>
-        </BalanceProvider>
-      </AppRoot>
-    </TonConnectUIProvider>
+    <UserContext.Provider value={userData}>
+      <TonConnectUIProvider manifestUrl="https://manutd22.github.io/newlf/tonconnect-manifest.json">
+        <AppRoot
+          appearance={miniApp.isDark ? 'dark' : 'light'}
+          platform={['macos', 'ios'].includes(lp.platform) ? 'ios' : 'base'}
+        >
+          <BalanceProvider>
+            <Router location={location} navigator={reactNavigator}>
+              <Routes>
+                {routes.map((route) => (
+                  <Route 
+                    key={route.path} 
+                    path={route.path} 
+                    element={<route.Component />} 
+                  />
+                ))}
+                <Route path="*" element={<Navigate to="/" />} />
+              </Routes>
+            </Router>
+          </BalanceProvider>
+        </AppRoot>
+      </TonConnectUIProvider>
+    </UserContext.Provider>
   );
 };
