@@ -10,60 +10,53 @@ import {
   useViewport,
 } from '@telegram-apps/sdk-react';
 import { AppRoot } from '@telegram-apps/telegram-ui';
-import { type FC, useEffect, useMemo, useState, useCallback, createContext } from 'react';
+import { type FC, useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Navigate,
   Route,
   Router,
   Routes,
 } from 'react-router-dom';
+import { createClient } from '@supabase/supabase-js';
 import { BalanceProvider } from '@/context/balanceContext';
 import { TonConnectUIProvider } from '@tonconnect/ui-react';
-import { supabase } from '@/lib/supabaseClient';
 
-import { routes } from '@/navigation/routes';
+import { routes } from '@/navigation/routes.tsx';
 
-// Создаем контекст для пользовательских данных
-export const UserContext = createContext<any>(null);
+// Инициализация Supabase клиента с использованием переменных окружения
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const saveTelegramUser = async (initDataRaw: string) => {
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Отсутствуют необходимые переменные окружения для Supabase');
+}
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+const saveOrUpdateTelegramUser = async (initDataRaw: string) => {
   try {
-    console.log('Raw initDataRaw:', initDataRaw);
-    
-    const params = new URLSearchParams(initDataRaw);
-    console.log('Parsed params:', Object.fromEntries(params));
-    
-    const userString = params.get('user');
-    console.log('User string:', userString);
-    
-    if (!userString) {
-      throw new Error('User data not found in initDataRaw');
-    }
-    
-    const user = JSON.parse(decodeURIComponent(userString));
-    console.log('Parsed user:', user);
-
-    const userData = {
-      telegramId: user.id.toString(),
-      username: user.username || null,
-      firstName: user.first_name || null,
-      lastName: user.last_name || null,
-      languageCode: user.language_code || null,
-      allowsWriteToPm: user.allows_write_to_pm || false
-    };
-    console.log('Prepared userData:', userData);
+    const initData = JSON.parse(decodeURIComponent(initDataRaw));
+    const { user } = initData;
 
     const { data, error } = await supabase
       .from('users')
-      .upsert(userData, { onConflict: 'telegramId' })
-      .select()
-      .single();
+      .upsert({
+        telegramId: user.id.toString(),
+        username: user.username,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        languageCode: user.language_code,
+        isPremium: user.is_premium || false,
+        // Добавьте другие поля, которые вы хотите сохранить
+      }, {
+        onConflict: 'telegramId'
+      })
+      .select();
 
     if (error) throw error;
-    console.log('User saved or updated:', data);
     return data;
   } catch (error) {
-    console.error('Failed to save user data:', error);
+    console.error('Failed to save or update user data:', error);
     throw error;
   }
 };
@@ -75,18 +68,17 @@ export const App: FC = () => {
   const viewport = useViewport();
   const [isDataSaved, setIsDataSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [userData, setUserData] = useState<any>(null);
 
   const saveUserData = useCallback(async () => {
     if (lp.initDataRaw && !isDataSaved) {
       try {
         console.log('Launch params:', lp);
-        const savedUser = await saveTelegramUser(lp.initDataRaw);
+        
+        await saveOrUpdateTelegramUser(lp.initDataRaw);
         setIsDataSaved(true);
-        setUserData(savedUser);
-        console.log('User data saved and retrieved successfully', savedUser);
+        console.log('User data saved or updated successfully');
       } catch (error) {
-        console.error('Error saving user data:', error);
+        console.error('Error saving or updating user data:', error);
       } finally {
         setIsLoading(false);
       }
@@ -94,7 +86,7 @@ export const App: FC = () => {
       console.warn('initDataRaw is empty or undefined');
       setIsLoading(false);
     }
-  }, [lp, isDataSaved]);
+  }, [lp.initDataRaw, isDataSaved]);
 
   useEffect(() => {
     saveUserData();
@@ -112,19 +104,6 @@ export const App: FC = () => {
     return viewport && bindViewportCSSVars(viewport);
   }, [viewport]);
 
-  // Проверка подключения к Supabase
-  useEffect(() => {
-    const checkSupabaseConnection = async () => {
-      const { error } = await supabase.from('users').select('count').single();
-      if (error) {
-        console.error('Supabase connection error:', error);
-      } else {
-        console.log('Supabase connected successfully');
-      }
-    };
-    checkSupabaseConnection();
-  }, []);
-
   const navigator = useMemo(() => initNavigator('app-navigation-state'), []);
   const [location, reactNavigator] = useIntegration(navigator);
 
@@ -138,28 +117,22 @@ export const App: FC = () => {
   }
 
   return (
-    <UserContext.Provider value={userData}>
-      <TonConnectUIProvider manifestUrl="https://manutd22.github.io/newlf/tonconnect-manifest.json">
-        <AppRoot
-          appearance={miniApp.isDark ? 'dark' : 'light'}
-          platform={['macos', 'ios'].includes(lp.platform) ? 'ios' : 'base'}
-        >
-          <BalanceProvider>
-            <Router location={location} navigator={reactNavigator}>
-              <Routes>
-                {routes.map((route) => (
-                  <Route 
-                    key={route.path} 
-                    path={route.path} 
-                    element={<route.Component />} 
-                  />
-                ))}
-                <Route path="*" element={<Navigate to="/" />} />
-              </Routes>
-            </Router>
-          </BalanceProvider>
-        </AppRoot>
-      </TonConnectUIProvider>
-    </UserContext.Provider>
+    <TonConnectUIProvider manifestUrl="https://manutd22.github.io/newlf/tonconnect-manifest.json">
+      <AppRoot
+        appearance={miniApp.isDark ? 'dark' : 'light'}
+        platform={['macos', 'ios'].includes(lp.platform) ? 'ios' : 'base'}
+      >
+        <BalanceProvider>
+          <Router location={location} navigator={reactNavigator}>
+            <Routes>
+              {routes.map((route) => (
+                <Route key={route.path} path={route.path} element={<route.Component />} />
+              ))}
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </Router>
+        </BalanceProvider>
+      </AppRoot>
+    </TonConnectUIProvider>
   );
 };
